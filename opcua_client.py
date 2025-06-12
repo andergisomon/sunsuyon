@@ -68,24 +68,12 @@ async def task():
 
             idx = await CLIENT.get_namespace_index(uri="urn:GipopPlcServer")
             parent = await CLIENT.nodes.objects.get_child(ua.QualifiedName(Name="PlcTags"))
-            # nodes = await parent.get_children()
-
-            temp_node = await parent.get_child(ua.QualifiedName(Name="temperature"))
-            humd_node = await parent.get_child(ua.QualifiedName(Name="humidity"))
-            area_1_lights_node = await parent.get_child(ua.QualifiedName(Name="area 1 lights"))
-            area_2_lights_node = await parent.get_child(ua.QualifiedName(Name="area 2 lights"))
-            area_1_lights_hmi_cmd_node = await parent.get_child(ua.QualifiedName(Name="area 1 lights hmi cmd"))            
-            status_node = await parent.get_child(ua.QualifiedName(Name="status"))            
+            nodes = await parent.get_children()    
 
             handler = SubscriptionHandler()
             subscription = await CLIENT.create_subscription(500, handler)
 
-            await subscription.subscribe_data_change(temp_node)
-            await subscription.subscribe_data_change(humd_node)
-            await subscription.subscribe_data_change(area_1_lights_node)
-            await subscription.subscribe_data_change(area_2_lights_node)
-            await subscription.subscribe_data_change(area_1_lights_hmi_cmd_node)
-            await subscription.subscribe_data_change(status_node)
+            await subscription.subscribe_data_change(nodes)
 
             CONNECT_SUCCESS = True
         except Exception as e:
