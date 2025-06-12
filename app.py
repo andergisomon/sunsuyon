@@ -58,11 +58,18 @@ def init_supabase() -> (bool, supabase.Client):
 async def main(client):
     # app logic here
     try:
-        val = opcua_client.GATEWAY_COPY.temp
-        _logger.warn(f"Appending table with value {val}")
+        val = opcua_client.GATEWAY_COPY
+        # _logger.warn(f"Appending table with value {val}")
         res = (
-            client.table("temperature")
-            .insert({"temp": val})
+            client.table("plc_tags")
+            .insert({
+                "temperature": val.temp,
+                "humidity": val.humd,
+                "area_1_lights": val.area_1_lights,
+                "area_2_lights": val.area_2_lights,
+                "area_1_lights_hmi_cmd": val.area_1_lights_hmi_cmd,
+                "status": val.status
+            })
             .execute()
         )
 

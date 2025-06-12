@@ -15,15 +15,37 @@ load_dotenv()
 class GatewayCopy:
     def __init__(self):
         self.temp = -255
+        self.humd = -255
+        self.area_1_lights = -255
+        self.area_2_lights = -255
+        self.area_1_lights_hmi_cmd = -255
+        self.status = -255
+
 
 GATEWAY_COPY = GatewayCopy()
 
 class SubscriptionHandler:
-    def datachange_notification(self, node: Node, val, data):
+    async def datachange_notification(self, node: Node, val, data):
         """
         Implement SubscriptionHandler trait, callback for data change of any node
         """
-        GATEWAY_COPY.temp = val
+        browsename = await node.read_browse_name()
+        match browsename:
+            case ua.QualifiedName(Name="temperature"):
+                GATEWAY_COPY.temp = val
+            case ua.QualifiedName(Name="humidity"):
+                GATEWAY_COPY.humd = val
+            case ua.QualifiedName(Name="area 1 lights"):
+                GATEWAY_COPY.area_1_lights = val
+            case ua.QualifiedName(Name="area 2 lights"):
+                GATEWAY_COPY.area_2_lights = val
+            case ua.QualifiedName(Name="area 1 lights hmi cmd"):
+                GATEWAY_COPY.area_1_lights_hmi_cmd = val
+            case ua.QualifiedName(Name="status"):
+                GATEWAY_COPY.status = val
+            case _:
+                _logger_opcua.error(f"Callback cannot find the node {browsename.to_string}")
+
         _logger_opcua.warn(f"Node {node} data changed to {val}")
 
 
@@ -49,11 +71,23 @@ async def task():
             idx = await CLIENT.get_namespace_index(uri="urn:GipopPlcServer")
             parent = await CLIENT.nodes.objects.get_child(ua.QualifiedName(Name="PlcTags"))
             # nodes = await parent.get_children()
+
             temp_node = await parent.get_child(ua.QualifiedName(Name="temperature"))
-            
+            humd_node = await parent.get_child(ua.QualifiedName(Name="humidity"))
+            area_1_lights_node = await parent.get_child(ua.QualifiedName(Name="area 1 lights"))
+            area_2_lights_node = await parent.get_child(ua.QualifiedName(Name="area 2 lights"))
+            area_1_lights_hmi_cmd_node = await parent.get_child(ua.QualifiedName(Name="area 1 lights hmi cmd"))            
+            status_node = await parent.get_child(ua.QualifiedName(Name="status"))            
+
             handler = SubscriptionHandler()
             subscription = await CLIENT.create_subscription(500, handler)
+
             await subscription.subscribe_data_change(temp_node)
+            await subscription.subscribe_data_change(humd_node)
+            await subscription.subscribe_data_change(area_1_lights_node)
+            await subscription.subscribe_data_change(area_2_lights_node)
+            await subscription.subscribe_data_change(area_1_lights_hmi_cmd_node)
+            await subscription.subscribe_data_change(status_node)
 
             CONNECT_SUCCESS = True
         except Exception as e:
