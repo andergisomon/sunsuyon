@@ -38,6 +38,7 @@ async def task():
 
     if COUNT == 0:
         try:
+            # Run once
             COUNT = COUNT + 1
             CLIENT = Client(url=url)
             CLIENT.set_user(usr)
@@ -45,14 +46,6 @@ async def task():
             _logger_opcua.warn("Connecting to OPC UA server...")
             await CLIENT.connect()
 
-            CONNECT_SUCCESS = True
-        except Exception as e:
-            COUNT = 0
-            CONNECT_SUCCESS = False
-            _logger_opcua.error(f"Failed to connect: {e}")
-
-    if COUNT != 0 and CONNECT_SUCCESS:
-        try:
             idx = await CLIENT.get_namespace_index(uri="urn:GipopPlcServer")
             parent = await CLIENT.nodes.objects.get_child(ua.QualifiedName(Name="PlcTags"))
             # nodes = await parent.get_children()
@@ -62,7 +55,16 @@ async def task():
             subscription = await CLIENT.create_subscription(500, handler)
             await subscription.subscribe_data_change(temp_node)
 
-            # GATEWAY_COPY.temp = await client.read_values([temp_node])[0]
+            CONNECT_SUCCESS = True
+        except Exception as e:
+            COUNT = 0
+            CONNECT_SUCCESS = False
+            _logger_opcua.error(f"Failed to connect: {e}")
+
+    if COUNT != 0 and CONNECT_SUCCESS:
+        try:
+            # Reserve for operations that need to be run continuously 
+            _logger_opcua.info("")
 
         except Exception:
             _logger_opcua.exception("error")
