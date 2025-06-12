@@ -21,7 +21,6 @@ class GatewayCopy:
         self.area_1_lights_hmi_cmd = -255
         self.status = -255
 
-
 GATEWAY_COPY = GatewayCopy()
 
 class SubscriptionHandler:
@@ -30,24 +29,23 @@ class SubscriptionHandler:
         Implement SubscriptionHandler trait, callback for data change of any node
         """
         browsename = await node.read_browse_name()
-        match browsename:
-            case ua.QualifiedName(Name="temperature"):
+        match browsename.Name:
+            case "temperature":
                 GATEWAY_COPY.temp = val
-            case ua.QualifiedName(Name="humidity"):
+            case "humidity":
                 GATEWAY_COPY.humd = val
-            case ua.QualifiedName(Name="area 1 lights"):
+            case "area 1 lights":
                 GATEWAY_COPY.area_1_lights = val
-            case ua.QualifiedName(Name="area 2 lights"):
+            case "area 2 lights":
                 GATEWAY_COPY.area_2_lights = val
-            case ua.QualifiedName(Name="area 1 lights hmi cmd"):
+            case "area 1 lights hmi cmd":
                 GATEWAY_COPY.area_1_lights_hmi_cmd = val
-            case ua.QualifiedName(Name="status"):
+            case "status":
                 GATEWAY_COPY.status = val
             case _:
-                _logger_opcua.error(f"Callback cannot find the node {browsename.to_string}")
+                _logger_opcua.error(f"Callback cannot find the node {browsename.Name}")
 
-        _logger_opcua.warn(f"Node {node} data changed to {val}")
-
+        _logger_opcua.warning(f"Node {node} data changed to {val}")
 
 async def task():
     global COUNT
@@ -65,7 +63,7 @@ async def task():
             CLIENT = Client(url=url)
             CLIENT.set_user(usr)
             CLIENT.set_password(pwd)
-            _logger_opcua.warn("Connecting to OPC UA server...")
+            _logger_opcua.warning("Connecting to OPC UA server...")
             await CLIENT.connect()
 
             idx = await CLIENT.get_namespace_index(uri="urn:GipopPlcServer")
@@ -101,6 +99,7 @@ async def task():
             _logger_opcua.info("")
 
         except Exception:
+            # TODO: handle stopped server and other connection problems
             _logger_opcua.exception("error")
             
 async def client_main():
