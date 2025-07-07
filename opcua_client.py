@@ -20,6 +20,8 @@ class GatewayCopy:
         self.area_2_lights = -255
         self.area_1_lights_hmi_cmd = -255
         self.status = -255
+        self.rmt_cmd_rag = -255
+        self.rmt_cmd_area_2_lights = -255
 
 GATEWAY_COPY = GatewayCopy()
 
@@ -68,7 +70,10 @@ async def task():
 
             idx = await CLIENT.get_namespace_index(uri="urn:GipopPlcServer")
             parent = await CLIENT.nodes.objects.get_child(ua.QualifiedName(Name="PlcTags"))
-            nodes = await parent.get_children()    
+            nodes = await parent.get_children()
+
+            rmt_cmd_rag_node = parent.get_child(ua.QualifiedName(Name="remote cmd RAG tower lights"))
+            rmt_cmd_area_2_lights_node = parent.get_child(ua.QualifiedName(Name="remote cmd area 2 lights"))
 
             handler = SubscriptionHandler()
             subscription = await CLIENT.create_subscription(500, handler)
@@ -84,11 +89,17 @@ async def task():
     if COUNT != 0 and CONNECT_SUCCESS:
         try:
             # Reserve for operations that need to be run continuously 
-            _logger_opcua.info("")
+            _logger_opcua.info(f"Writing remote command values from Supabase into OPC UA Server...")
 
-        except Exception:
+            CLIENT.write_values([rmt_cmd_rag_node, 
+                                 rmt_cmd_area_2_lights_node],
+                                 [GATEWAY_COPY.rmt_cmd_rag,
+                                 GATEWAY_COPY.rmt_cmd_area_2_lights]
+                               )
+
+        except Exception as e:
             # TODO: handle stopped server and other connection problems
-            _logger_opcua.exception("error")
+            _logger_opcua.exception(f"error: {e}")
             
 async def client_main():
     await task()

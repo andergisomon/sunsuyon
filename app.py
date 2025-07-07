@@ -72,7 +72,21 @@ async def main(client):
         )
 
     except Exception as e:
-        _logger.error(f"Failed to append table: {e}")
+        _logger.error(f"Failed to append plc_tags table: {e}")
+    
+    try:
+        val = opcua_client.GATEWAY_COPY
+        res = (
+            client.table("remote_cmd")
+            .select("*")
+            .execute()
+        )
+
+        val.rmt_cmd_rag = res["data"][-1]["rag"]
+        val.rmt_cmd_area_2_lights = res["data"][-1]["lights"]
+
+    except Exception as e:
+        _logger.error(f"Faileed to select remote_cmd table: {e}")
     
     await asyncio.sleep(0.5)
 
