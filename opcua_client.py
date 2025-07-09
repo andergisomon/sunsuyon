@@ -3,6 +3,7 @@ import asyncio
 import os
 import logging
 from dotenv import load_dotenv
+import datetime
 
 _logger_opcua = logging.getLogger("asyncua")
 
@@ -20,8 +21,8 @@ class GatewayCopy:
         self.area_2_lights = -255
         self.area_1_lights_hmi_cmd = -255
         self.status = -255
-        self.rmt_cmd_rag = -255
-        self.rmt_cmd_area_2_lights = -255
+        self.rmt_cmd_rag = 0
+        self.rmt_cmd_area_2_lights = 0
 
 GATEWAY_COPY = GatewayCopy()
 
@@ -44,10 +45,20 @@ class SubscriptionHandler:
                 GATEWAY_COPY.area_1_lights_hmi_cmd = val
             case "status":
                 GATEWAY_COPY.status = val
+            case "remote cmd RAG tower lights":
+                # Do nothing here, Sunsuyon will only fetch data from Supabase and write the value into the
+                # corresponding OPC UA server tag, not the other way around
+                # GATEWAY_COPY.rmt_cmd_rag = val
+                ()
+            case "remote cmd area 2 lights":
+                # Do nothing here, Sunsuyon will only fetch data from Supabase and write the value into the
+                # corresponding OPC UA server tag, not the other way around
+                # GATEWAY_COPY.rmt_cmd_area_2_lights = val
+                ()
             case _:
                 _logger_opcua.error(f"Callback cannot find the node {browsename.Name}")
 
-        _logger_opcua.warning(f"Node {node} data changed to {val}")
+        _logger_opcua.info(f"Node {node} data changed to {val}")
 
 async def task():
     global COUNT
@@ -72,9 +83,6 @@ async def task():
             parent = await CLIENT.nodes.objects.get_child(ua.QualifiedName(Name="PlcTags"))
             nodes = await parent.get_children()
 
-            rmt_cmd_rag_node = parent.get_child(ua.QualifiedName(Name="remote cmd RAG tower lights"))
-            rmt_cmd_area_2_lights_node = parent.get_child(ua.QualifiedName(Name="remote cmd area 2 lights"))
-
             handler = SubscriptionHandler()
             subscription = await CLIENT.create_subscription(500, handler)
 
@@ -91,11 +99,21 @@ async def task():
             # Reserve for operations that need to be run continuously 
             _logger_opcua.info(f"Writing remote command values from Supabase into OPC UA Server...")
 
-            CLIENT.write_values([rmt_cmd_rag_node, 
-                                 rmt_cmd_area_2_lights_node],
-                                 [GATEWAY_COPY.rmt_cmd_rag,
-                                 GATEWAY_COPY.rmt_cmd_area_2_lights]
-                               )
+            parent = await CLIENT.nodes.objects.get_child(ua.QualifiedName(Name="PlcTags"))
+            nodes = await parent.get_children()
+
+            for node in nodes:
+                browse_name = await node.read_browse_name()
+                match browse_name.Name:
+                    case "remote cmd RAG tower lights":
+                        rmt_cmd_rag_node = node
+                    case "remote cmd area 2 lights":
+                        rmt_cmd_area_2_lights_node = node
+            
+            # Wrapping the python type with ua.UInt32() is important, or else you'll get cryptic errors
+            # and of course be sure to check the actual tag value type, in this case I know it's UInt32
+            await rmt_cmd_rag_node.write_value(ua.UInt32(GATEWAY_COPY.rmt_cmd_rag))
+            await rmt_cmd_area_2_lights_node.write_value(ua.UInt32(GATEWAY_COPY.rmt_cmd_area_2_lights))
 
         except Exception as e:
             # TODO: handle stopped server and other connection problems

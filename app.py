@@ -82,11 +82,11 @@ async def main(client):
             .execute()
         )
 
-        val.rmt_cmd_rag = res["data"][-1]["rag"]
-        val.rmt_cmd_area_2_lights = res["data"][-1]["lights"]
+        val.rmt_cmd_rag = res.data[-1]["rag"]
+        val.rmt_cmd_area_2_lights = res.data[-1]["lights"]
 
     except Exception as e:
-        _logger.error(f"Faileed to select remote_cmd table: {e}")
+        _logger.error(f"Failed to select remote_cmd table: {e}")
     
     await asyncio.sleep(0.5)
 
