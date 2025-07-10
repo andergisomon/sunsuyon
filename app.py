@@ -57,7 +57,7 @@ async def main(client):
     # app logic here
     try:
         val = opcua_client.GATEWAY_COPY
-        # _logger.warning(f"Appending table with value {val}")
+        # _logger.warn(f"Appending plc_tags table with value {val}")
         res = (
             client.table("plc_tags")
             .insert({
@@ -75,6 +75,7 @@ async def main(client):
         _logger.error(f"Failed to append plc_tags table: {e}")
     
     try:
+        _logger.warn("Fetching remote_cmd table")
         val = opcua_client.GATEWAY_COPY
         res = (
             client.table("remote_cmd")
