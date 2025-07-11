@@ -1,7 +1,14 @@
 const std = @import("std");
+const iox2_root = "/home/ander/SIIP_project/iiot_gateway/sunsuyon/tgbot/c_deps/iceoryx2/target/ffi/install";
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
+
+    const target = b.resolveTargetQuery(.{
+            .cpu_arch = .aarch64,
+            .os_tag = .linux,
+            .abi = .gnu,
+    });
+
     const optimize = b.standardOptimizeOption(.{});
 
     // Add zigtgshka dependency
@@ -18,12 +25,18 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    exe.addIncludePath(
+        b.path("../tgbot/c_deps/iceoryx2/target/ffi/install/include/iceoryx2/v0.6.1/iox2/")
+    );
+
+    exe.linkSystemLibrary("gcc_s"); // For Rust C unwinder
+
+    exe.addObjectFile(b.path("../tgbot/c_deps/iceoryx2/target/ffi/install/lib/libiceoryx2_ffi.a"));
+
     // Import the telegram module
     exe.root_module.addImport("telegram", telegram_dependency.module("telegram"));
     exe.linkLibC(); // Required for HTTP client
     
-    b.installArtifact(exe);
-
     // Run step
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
@@ -34,4 +47,5 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run bot");
     run_step.dependOn(&run_cmd.step);
+    b.installArtifact(exe);
 }

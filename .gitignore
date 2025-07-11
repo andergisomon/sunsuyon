@@ -2,3 +2,4 @@
 __pycache__
 tgbot/.zig-cache
 tgbot/zig-out
+tgbot/c_deps
