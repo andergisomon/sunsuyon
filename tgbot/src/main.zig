@@ -172,17 +172,17 @@ pub fn main() !void {
                 // }
 
                 if (msg.err_code == @intFromEnum(ErrCodes.Part1Part2ReportDown)) {
-                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 1 and Part 2 Report NOK");
+                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\xA8 Part 1 and Part 2 Report NOK\xF0\x9F\x9A\xA8 \n We need you at the floor now! \xF0\x9F\x98\x93");
                     defer reply.deinit(allocator);
                 }
 
                 if (msg.err_code == @intFromEnum(ErrCodes.Part2ReportDown)) {
-                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 2 Report NOK");
+                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\xA8 Part 2 Report NOK\xF0\x9F\x9A\xA8 \n We need you at the floor now! \xF0\x9F\x98\x93");
                     defer reply.deinit(allocator);
                 }
 
                 if (msg.err_code == @intFromEnum(ErrCodes.Part1ReportDown)) {
-                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 1 Report NOK");
+                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\xA8 Part 1 Report NOK\xF0\x9F\x9A\xA8 \n We need you at the floor now! \xF0\x9F\x98\x93");
                     defer reply.deinit(allocator);
                 }
             }
