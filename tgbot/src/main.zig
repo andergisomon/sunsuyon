@@ -7,10 +7,17 @@ const dotenv = @import("dotenv.zig");
 
 const iox2 = @cImport({
     @cInclude(iox2_root ++ "/include/iceoryx2/v0.6.1/iox2/iceoryx2.h");
-    // @cInclude("iox2/iceoryx2.h");
-    // @cInclude("transmission_data.h");
-    @cInclude(tgbot_root ++ "/transmission_data.h");
 });
+
+const TgbotAlertFromPlc = extern struct { err_code: u32 };
+
+const ErrCodes = enum(u32) {
+    Uninit = 255,
+    OllKorrect = 0,
+    Part1ReportDown = 1,
+    Part2ReportDown = 2,
+    Part1Part2ReportDown = 3,
+};
 
 pub fn main() !void {
     // create new node
@@ -21,7 +28,7 @@ pub fn main() !void {
     }
 
     // create service name
-    const service_name_value = "My/Funk/ServiceName";
+    const service_name_value = "TgbotFromPlc";
     var service_name: iox2.iox2_service_name_h = null;
     if (iox2.iox2_service_name_new(null, service_name_value, service_name_value.len, &service_name) != iox2.IOX2_OK) {
         std.log.err("Unable to create service name!\n", .{});
@@ -34,8 +41,8 @@ pub fn main() !void {
     const service_builder_pub_sub: iox2.iox2_service_builder_pub_sub_h = iox2.iox2_service_builder_pub_sub(service_builder);
 
     // set pub sub payload type
-    const payload_type_name = "16TransmissionData";
-    if (iox2.iox2_service_builder_pub_sub_set_payload_type_details(&service_builder_pub_sub, iox2.iox2_type_variant_e_FIXED_SIZE, payload_type_name, payload_type_name.len, @sizeOf(iox2.TransmissionData), @alignOf(iox2.TransmissionData)) != iox2.IOX2_OK) {
+    const payload_type_name = "TgbotAlertFromPlc";
+    if (iox2.iox2_service_builder_pub_sub_set_payload_type_details(&service_builder_pub_sub, iox2.iox2_type_variant_e_FIXED_SIZE, payload_type_name, payload_type_name.len, @sizeOf(TgbotAlertFromPlc), @alignOf(TgbotAlertFromPlc)) != iox2.IOX2_OK) {
         std.log.err("Unable to set type details\n", .{});
         iox2.iox2_service_name_drop(service_name);
     }
@@ -56,7 +63,75 @@ pub fn main() !void {
         iox2.iox2_service_name_drop(service_name);
     }
 
-    while (iox2.iox2_node_wait(&node_handle, 1, 0) == iox2.IOX2_OK) {
+    var dbga = std.heap.DebugAllocator(.{ .safety = true }){};
+    defer _ = dbga.deinit();
+    const allocator = dbga.allocator();
+    const dotenv_alloc = dbga.allocator();
+
+    var env = try dotenv.init(dotenv_alloc, ".env");
+    defer env.deinit();
+
+    const panalib = env.get("PASSPHRASE") orelse "Cannot find PASSPHRASE env var";
+    const tgbot_token = env.get("TGBOT_TOKEN") orelse "Cannot find TGBOT_TOKEN env var";
+
+    var client = try telegram.HTTPClient.init(allocator);
+    defer client.deinit();
+
+    var bot = try telegram.Bot.init(allocator, tgbot_token, &client);
+    defer bot.deinit();
+
+    var me = try telegram.methods.getMe(&bot);
+    defer me.deinit(allocator);
+
+    std.debug.print("🚀 Bot @{s} is online!\n", .{me.username orelse me.first_name});
+
+    var offset: i32 = 0;
+    var pass_fail_count: u8 = 0;
+    var auth_ok: bool = false;
+
+    while (pass_fail_count <= 3 and !auth_ok) {
+        const updates = try telegram.methods.getUpdates(&bot, offset, 100, 30);
+        defer {
+            for (updates) |*update| update.deinit(allocator);
+            allocator.free(updates);
+        }
+
+        for (updates) |update| {
+            offset = update.update_id + 1;
+            if (update.message) |message| {
+                if (message.text) |text| {
+                    if (pass_fail_count == 3) {
+                        var reply = try telegram.methods.sendMessage(&bot, message.chat.id, "Used up all 3 attempts to authenticate.");
+                        defer reply.deinit(allocator);
+                        std.log.err("Client failed to identify thrice", .{});
+                    }
+
+                    const pass = std.mem.eql(u8, text, panalib);
+                    if (pass) {
+                        auth_ok = true; // break loop
+                        std.log.info("Client identified successfully.", .{});
+                        var reply = try telegram.methods.sendMessage(&bot, message.chat.id, "Identification successful. Please send at least one message to trigger the update. To log out, send /bye");
+                        defer reply.deinit(allocator);
+                    } else {
+                        var reply = try telegram.methods.sendMessage(&bot, message.chat.id, "Identity not recognized.");
+                        defer reply.deinit(allocator);
+                        pass_fail_count = pass_fail_count + 1;
+                        std.log.info("Client failed to identify {} times", .{pass_fail_count});
+                    }
+                }
+            }
+        }
+    }
+
+    var new_offset = offset;
+    var chat_id: i64 = -1;
+    while (auth_ok) {
+        const updates = try telegram.methods.getUpdates(&bot, new_offset, 3, 5);
+        defer {
+            for (updates) |*update| update.deinit(allocator);
+            allocator.free(updates);
+        }
+
         // receive sample
         var sample: iox2.iox2_sample_h = null;
         if (iox2.iox2_subscriber_receive(&subscriber, null, &sample) != iox2.IOX2_OK) {
@@ -65,73 +140,55 @@ pub fn main() !void {
         }
 
         if (sample != null) {
-            var payload: ?*iox2.TransmissionData = null;
-            const pootodon: *?*const anyopaque = @ptrCast(&payload);
-            iox2.iox2_sample_payload(&sample, pootodon, null);
+            var payload: ?*TgbotAlertFromPlc = null;
+            const linopot: *?*const anyopaque = @ptrCast(&payload);
+            iox2.iox2_sample_payload(&sample, linopot, null);
 
             if (payload) |msg| {
-                std.log.info("received: TransmissionData .x: {}, .y: {}, .funky: {:.2}\n", .{ msg.x, msg.y, msg.funky });
+                std.log.info("received: {}", .{msg.err_code});
+
+                for (updates) |update| {
+                    new_offset = update.update_id + 1;
+                    if (update.message) |message| {
+                        chat_id = message.chat.id;
+
+                        if (message.text) |text| {
+                            if (std.mem.eql(u8, text, "/bye")) {
+                                auth_ok = false;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (msg.err_code == @intFromEnum(ErrCodes.Uninit)) {
+                    std.log.err("PLC logic error, ErrCode is uninitialized", .{});
+                }
+
+                // if (msg.err_code == @intFromEnum(ErrCodes.OllKorrect)) {
+                //     var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 1 and Part 2 Report OK");
+                //     defer reply.deinit(allocator);
+                //     std.log.info("sendMessage returned: {}", .{reply});
+                // }
+
+                if (msg.err_code == @intFromEnum(ErrCodes.Part1Part2ReportDown)) {
+                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 1 and Part 2 Report NOK");
+                    defer reply.deinit(allocator);
+                }
+
+                if (msg.err_code == @intFromEnum(ErrCodes.Part2ReportDown)) {
+                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 2 Report NOK");
+                    defer reply.deinit(allocator);
+                }
+
+                if (msg.err_code == @intFromEnum(ErrCodes.Part1ReportDown)) {
+                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 1 Report NOK");
+                    defer reply.deinit(allocator);
+                }
             }
+
             iox2.iox2_sample_drop(sample);
         }
     }
-
-
-
-
-
-
-
-
-
-
-
-    // var dbga = std.heap.DebugAllocator(.{.safety = true}){};
-    // defer _ = dbga.deinit();
-    // const allocator = dbga.allocator();
-    // const dotenv_alloc = dbga.allocator();
-
-    // var env = try dotenv.init(dotenv_alloc, ".env");
-    // defer env.deinit();
-
-    // const tgbot_token = env.get("TGBOT_TOKEN") orelse "Cannot find TGBOT_TOKEN env var";
-    // std.debug.print("\n@{s}", .{tgbot_token});
-
-    // var client = try telegram.HTTPClient.init(allocator);
-    // defer client.deinit();
-
-    // var bot = try telegram.Bot.init(allocator, tgbot_token, &client);
-    // defer bot.deinit();
-
-    // var me = try telegram.methods.getMe(&bot);
-    // defer me.deinit(allocator);
-
-    // std.debug.print("🚀 Bot @{s} is online!\n", .{me.username orelse me.first_name});
-
-    // var offset: i32 = 0;
-    // while (true) {
-    //     const updates = try telegram.methods.getUpdates(&bot, offset, 100, 30);
-    //     defer {
-    //         for (updates) |*update| update.deinit(allocator);
-    //         allocator.free(updates);
-    //     }
-
-    //     for (updates) |update| {
-    //         offset = update.update_id + 1;
-
-    //         if (update.message) |message| {
-    //             if (message.text) |text| {
-    //                 var reply = try telegram.methods.sendMessage(&bot, message.chat.id, text);
-    //                 defer reply.deinit(allocator);
-
-    //                 std.debug.print("📨 Echoed: {s}\n", .{text});
-    //             }
-    //         }
-    //     }
-    // }
-
-
-
-
-
+    std.Thread.sleep(1_000_000_000);
 }
