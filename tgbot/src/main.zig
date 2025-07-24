@@ -110,7 +110,7 @@ pub fn main() !void {
                     if (pass) {
                         auth_ok = true; // break loop
                         std.log.info("Client identified successfully.", .{});
-                        var reply = try telegram.methods.sendMessage(&bot, message.chat.id, "Identification successful. Please send at least one message to trigger the update. To log out, send /bye");
+                        var reply = try telegram.methods.sendMessage(&bot, message.chat.id, "Identification successful. Send /start to trigger the update. To log out, send /bye");
                         defer reply.deinit(allocator);
                     } else {
                         var reply = try telegram.methods.sendMessage(&bot, message.chat.id, "Identity not recognized.");
@@ -125,18 +125,20 @@ pub fn main() !void {
 
     var new_offset = offset;
     var chat_id: i64 = -1;
+    var start: bool = false;
+    var prev_msg: ErrCodes = ErrCodes.Uninit;
     while (auth_ok) {
-        const updates = try telegram.methods.getUpdates(&bot, new_offset, 3, 5);
-        defer {
-            for (updates) |*update| update.deinit(allocator);
-            allocator.free(updates);
-        }
-
         // receive sample
         var sample: iox2.iox2_sample_h = null;
         if (iox2.iox2_subscriber_receive(&subscriber, null, &sample) != iox2.IOX2_OK) {
             std.log.err("Failed to receive sample\n", .{});
             iox2.iox2_service_name_drop(service_name);
+        }
+
+        const updates = try telegram.methods.getUpdates(&bot, new_offset, 3, 0);
+        defer {
+            for (updates) |*update| update.deinit(allocator);
+            allocator.free(updates);
         }
 
         if (sample != null) {
@@ -157,38 +159,47 @@ pub fn main() !void {
                                 auth_ok = false;
                                 break;
                             }
+                            if (std.mem.eql(u8, text, "/start")) {
+                                start = true;
+                            }
                         }
                     }
                 }
 
-                if (msg.err_code == @intFromEnum(ErrCodes.Uninit)) {
-                    std.log.err("PLC logic error, ErrCode is uninitialized", .{});
-                }
+                if (start) {
 
-                // if (msg.err_code == @intFromEnum(ErrCodes.OllKorrect)) {
-                //     var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 1 and Part 2 Report OK");
-                //     defer reply.deinit(allocator);
-                //     std.log.info("sendMessage returned: {}", .{reply});
-                // }
+                    if (msg.err_code == @intFromEnum(ErrCodes.Uninit)) {
+                        std.log.err("PLC logic error, ErrCode is uninitialized", .{});
+                    }
 
-                if (msg.err_code == @intFromEnum(ErrCodes.Part1Part2ReportDown)) {
-                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\xA8 Part 1 and Part 2 Report NOK\xF0\x9F\x9A\xA8 \n We need you at the floor now! \xF0\x9F\x98\x93");
-                    defer reply.deinit(allocator);
-                }
+                    // if (msg.err_code == @intFromEnum(ErrCodes.OllKorrect)) {
+                    //     var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 1 and Part 2 Report OK");
+                    //     defer reply.deinit(allocator);
+                    //     std.log.info("sendMessage returned: {}", .{reply});
+                    // }
 
-                if (msg.err_code == @intFromEnum(ErrCodes.Part2ReportDown)) {
-                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\xA8 Part 2 Report NOK\xF0\x9F\x9A\xA8 \n We need you at the floor now! \xF0\x9F\x98\x93");
-                    defer reply.deinit(allocator);
-                }
+                    if (msg.err_code == @intFromEnum(ErrCodes.Part1Part2ReportDown) and msg.err_code != @intFromEnum(prev_msg)) {
+                        prev_msg = @enumFromInt(msg.err_code);
+                        var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\xA8 Part 1 and Part 2 Report NOK\xF0\x9F\x9A\xA8 \n We need you at the floor now! \xF0\x9F\x98\x93");
+                        defer reply.deinit(allocator);
+                    }
 
-                if (msg.err_code == @intFromEnum(ErrCodes.Part1ReportDown)) {
-                    var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\xA8 Part 1 Report NOK\xF0\x9F\x9A\xA8 \n We need you at the floor now! \xF0\x9F\x98\x93");
-                    defer reply.deinit(allocator);
+                    if (msg.err_code == @intFromEnum(ErrCodes.Part2ReportDown) and msg.err_code != @intFromEnum(prev_msg)) {
+                        prev_msg = @enumFromInt(msg.err_code);
+                        var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\xA8 Part 2 Report NOK\xF0\x9F\x9A\xA8 \n We need you at the floor now! \xF0\x9F\x98\x93");
+                        defer reply.deinit(allocator);
+                    }
+
+                    if (msg.err_code == @intFromEnum(ErrCodes.Part1ReportDown) and msg.err_code != @intFromEnum(prev_msg)) {
+                        prev_msg = @enumFromInt(msg.err_code);
+                        var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\xA8 Part 1 Report NOK\xF0\x9F\x9A\xA8 \n We need you at the floor now! \xF0\x9F\x98\x93");
+                        defer reply.deinit(allocator);
+                    }
                 }
             }
 
             iox2.iox2_sample_drop(sample);
         }
     }
-    std.Thread.sleep(1_000_000_000);
+    std.Thread.sleep(10_000_000);
 }
