@@ -172,11 +172,11 @@ pub fn main() !void {
                         std.log.err("PLC logic error, ErrCode is uninitialized", .{});
                     }
 
-                    // if (msg.err_code == @intFromEnum(ErrCodes.OllKorrect)) {
-                    //     var reply = try telegram.methods.sendMessage(&bot, chat_id, "Part 1 and Part 2 Report OK");
-                    //     defer reply.deinit(allocator);
-                    //     std.log.info("sendMessage returned: {}", .{reply});
-                    // }
+                    if (msg.err_code == @intFromEnum(ErrCodes.OllKorrect) and msg.err_code != @intFromEnum(prev_msg)) {
+                        var reply = try telegram.methods.sendMessage(&bot, chat_id, "\xF0\x9F\x98\x8C Part 1 and Part 2 Report OK \xE2\x9C\x85");
+                        prev_msg = @enumFromInt(msg.err_code);
+                        defer reply.deinit(allocator);
+                    }
 
                     if (msg.err_code == @intFromEnum(ErrCodes.Part1Part2ReportDown) and msg.err_code != @intFromEnum(prev_msg)) {
                         prev_msg = @enumFromInt(msg.err_code);
