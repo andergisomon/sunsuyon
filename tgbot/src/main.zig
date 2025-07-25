@@ -32,8 +32,9 @@ const AppState = struct {
     }
 
     fn set(self: *Self, param: AppStateValues) void {
-        defer self.mutex.unlock();
         if (self.mutex.tryLock()) {
+            defer self.mutex.unlock();
+
             if (param.auth_ok != null) {
                 self.vals.auth_ok = param.auth_ok;
             }
@@ -59,8 +60,8 @@ const AppState = struct {
     }
 
     fn get(self: *Self) ?AppStateValues {
-        defer self.mutex.unlock();
         if (self.mutex.tryLock()) {
+            defer self.mutex.unlock();
             return self.vals;
         }
         else {
@@ -164,7 +165,15 @@ pub fn main() !void {
 
         for (updates) |update| {
             offset = update.update_id + 1;
-            app_state_ptr.*.set(.{ .auth_ok = null, .chat_id = null, .offset = offset, .prev_msg = null, .start = null, .msg = null});
+            app_state_ptr.*.set(.{
+                    .auth_ok = null,
+                    .chat_id = null,
+                    .offset = offset,
+                    .prev_msg = null,
+                    .start = null,
+                    .msg = null
+                }
+            );
 
             if (update.message) |message| {
                 if (message.text) |text| {
@@ -177,7 +186,15 @@ pub fn main() !void {
                     const pass = std.mem.eql(u8, text, panalib);
                     if (pass) {
                         auth_ok = true; // break loop
-                        app_state_ptr.*.set(.{ .auth_ok = true, .chat_id = null, .offset = null, .prev_msg = null, .start = null, .msg = null});
+                        app_state_ptr.*.set(.{
+                                .auth_ok = true,
+                                .chat_id = null,
+                                .offset = null,
+                                .prev_msg = null,
+                                .start = null,
+                                .msg = null
+                            }
+                        );
                         std.log.info("Client identified successfully.", .{});
                         var reply = try telegram.methods.sendMessage(&bot, message.chat.id, "Identification successful. Send /start to trigger the update. To log out, send /bye");
                         defer reply.deinit(allocator);
@@ -197,7 +214,7 @@ pub fn main() !void {
 
     while (true) {
         try ipc_worker(app_state_ptr, &subscriber, service_name);
-        std.Thread.sleep(1_000_000_000);
+        std.Thread.sleep(500_000_000);
     }
 }
 
@@ -224,7 +241,15 @@ fn ipc_worker(app_state: *AppState, subscriber: *iox2.iox2_subscriber_h, service
 
             if (payload) |msg| {
                 std.log.info("received: {}", .{msg.err_code});
-                app_state.set(.{ .auth_ok = null, .chat_id = null, .offset = null, .prev_msg = null, .start = null, .msg = msg.*});
+                app_state.set(.{
+                        .auth_ok = null,
+                        .chat_id = null,
+                        .offset = null,
+                        .prev_msg = null,
+                        .start = null,
+                        .msg = msg.*
+                    }
+                );
             }
 
             iox2.iox2_sample_drop(sample);
@@ -254,7 +279,7 @@ fn tg_worker(app_state: *AppState, bot: *telegram.Bot, allocator: std.mem.Alloca
         const nullcheck = auth_ok != null and start != null and new_offset != null and chat_id != null and prev_msg != null and msg != null;
         if (nullcheck) {
             if (auth_ok.? and state != null) {
-                const updates = try telegram.methods.getUpdates(bot, new_offset.?, 3, 1);
+                const updates = try telegram.methods.getUpdates(bot, new_offset.?, 3, 0);
                 defer {
                     for (updates) |*update| update.deinit(allocator);
                     allocator.free(updates);
@@ -262,20 +287,52 @@ fn tg_worker(app_state: *AppState, bot: *telegram.Bot, allocator: std.mem.Alloca
 
                 for (updates) |update| {
                     const ofst = update.update_id + 1;
-                    app_state.set(.{.auth_ok = null, .chat_id = chat_id, .msg = null, .offset = ofst, .prev_msg = null, .start = null});
+                    app_state.set(.{
+                            .auth_ok = null,
+                            .chat_id = chat_id,
+                            .msg = null,
+                            .offset = ofst,
+                            .prev_msg = null,
+                            .start = null
+                        }
+                    );
 
                     if (update.message) |message| {
                         chat_id = message.chat.id;
-                        app_state.set(.{.auth_ok = null, .chat_id = chat_id, .msg = null, .offset = null, .prev_msg = null, .start = null});
+                        app_state.set(.{
+                                .auth_ok = null,
+                                .chat_id = chat_id,
+                                .msg = null,
+                                .offset = null,
+                                .prev_msg = null,
+                                .start = null
+                            }
+                        );
 
                         if (message.text) |text| {
                             if (std.mem.eql(u8, text, "/bye")) {
                                 auth_ok = false;
-                                app_state.set(.{.auth_ok = false, .chat_id = null, .msg = null, .offset = null, .prev_msg = null, .start = null});
+                                app_state.set(.{
+                                        .auth_ok = false,
+                                        .chat_id = null,
+                                        .msg = null,
+                                        .offset = null,
+                                        .prev_msg = null,
+                                        .start = null
+                                    }
+                                );
                             }
                             if (std.mem.eql(u8, text, "/start")) {
                                 start = true;
-                                app_state.set(.{.auth_ok = null, .chat_id = null, .msg = null, .offset = null, .prev_msg = null, .start = true});
+                                app_state.set(.{
+                                        .auth_ok = null,
+                                        .chat_id = null,
+                                        .msg = null,
+                                        .offset = null,
+                                        .prev_msg = null,
+                                        .start = true
+                                    }
+                                );
                             }
                         }
                     }
@@ -310,7 +367,15 @@ fn tg_worker(app_state: *AppState, bot: *telegram.Bot, allocator: std.mem.Alloca
                         defer reply.deinit(allocator);
                     }
 
-                    app_state.set(.{.auth_ok = null, .chat_id = null, .msg = null, .offset = null, .prev_msg = prev_msg, .start = null});
+                    app_state.set(.{
+                            .auth_ok = null,
+                            .chat_id = null,
+                            .msg = null,
+                            .offset = null,
+                            .prev_msg = prev_msg,
+                            .start = null
+                        }
+                    );
                 }
             }
 
