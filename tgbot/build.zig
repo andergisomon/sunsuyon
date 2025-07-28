@@ -28,7 +28,8 @@ pub fn build(b: *std.Build) void {
     exe.addIncludePath(
         b.path("../tgbot/c_deps/iceoryx2/target/ffi/install/include/iceoryx2/v0.6.1/iox2/")
     );
-    exe.linkSystemLibrary("gcc_s"); // For Rust C unwinder. Chatjippity told me to put it here and that's what iceoryx2 needed apparently.
+    // This line exe.linkSystemLibrary("gcc_s"); is needed for Rust unwind
+    exe.linkSystemLibrary("gcc_s"); // Link to target shared glibc
     exe.addObjectFile(b.path("../tgbot/c_deps/iceoryx2/target/ffi/install/lib/libiceoryx2_ffi.a"));
 
     // Import the telegram module
