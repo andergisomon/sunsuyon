@@ -21,8 +21,8 @@ class GatewayCopy:
         self.area_2_lights = -255
         self.area_1_lights_hmi_cmd = -255
         self.status = -255
-        self.rmt_cmd_rag = 0
-        self.rmt_cmd_area_2_lights = 0
+        self.rmt_cmd_rag = -255
+        self.rmt_cmd_area_2_lights = -255
 
 GATEWAY_COPY = GatewayCopy()
 
@@ -112,7 +112,9 @@ async def task():
             
             # Wrapping the python type with ua.UInt32() is important, or else you'll get cryptic errors
             # and of course be sure to check the actual tag value type, in this case I know it's UInt32
+            _logger_opcua.warn(f"Sending rmt_cmd_rag_node {GATEWAY_COPY.rmt_cmd_rag}")
             await rmt_cmd_rag_node.write_value(ua.UInt32(GATEWAY_COPY.rmt_cmd_rag))
+            _logger_opcua.warn(f"Sending rmt_cmd_area_2_lights_node {GATEWAY_COPY.rmt_cmd_area_2_lights}")
             await rmt_cmd_area_2_lights_node.write_value(ua.UInt32(GATEWAY_COPY.rmt_cmd_area_2_lights))
 
         except Exception as e:

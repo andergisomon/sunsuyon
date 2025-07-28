@@ -80,11 +80,15 @@ async def main(client):
         res = (
             client.table("remote_cmd")
             .select("*")
+            .order("created_at", desc=True)
+            .limit(1)
             .execute()
         )
 
-        val.rmt_cmd_rag = res.data[-1]["rag"]
-        val.rmt_cmd_area_2_lights = res.data[-1]["lights"]
+        val.rmt_cmd_rag = res.data[0]["rag"]
+        _logger.warn(f"Fetched {val.rmt_cmd_rag}")
+        val.rmt_cmd_area_2_lights = res.data[0]["lights"]
+        _logger.warn(f"Fetched {val.rmt_cmd_area_2_lights}")
 
     except Exception as e:
         _logger.error(f"Failed to select remote_cmd table: {e}")
